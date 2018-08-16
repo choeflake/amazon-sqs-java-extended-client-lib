@@ -350,36 +350,39 @@ public class AmazonSQSExtendedClient extends AmazonSQSExtendedClientBase impleme
 
 		List<Message> messages = receiveMessageResult.getMessages();
 		for (Message message : messages) {
-
-			// for each received message check if they are stored in S3.
-			MessageAttributeValue largePayloadAttributeValue = message.getMessageAttributes().get(
-					SQSExtendedClientConstants.RESERVED_ATTRIBUTE_NAME);
-			if (largePayloadAttributeValue != null) {
-				String messageBody = message.getBody();
-
-				// read the S3 pointer from the message body JSON string.
-				MessageS3Pointer s3Pointer = readMessageS3PointerFromJSON(messageBody);
-
-				String s3MsgBucketName = s3Pointer.getS3BucketName();
-				String s3MsgKey = s3Pointer.getS3Key();
-
-				String origMsgBody = getTextFromS3(s3MsgBucketName, s3MsgKey);
-				LOG.info("S3 object read, Bucket name: " + s3MsgBucketName + ", Object key: " + s3MsgKey + ".");
-
-				message.setBody(origMsgBody);
-
-				// remove the additional attribute before returning the message
-				// to user.
-				message.getMessageAttributes().remove(SQSExtendedClientConstants.RESERVED_ATTRIBUTE_NAME);
-
-				// Embed s3 object pointer in the receipt handle.
-				String modifiedReceiptHandle = embedS3PointerInReceiptHandle(message.getReceiptHandle(),
-						s3MsgBucketName, s3MsgKey);
-
-				message.setReceiptHandle(modifiedReceiptHandle);
-			}
+			process(message);
 		}
 		return receiveMessageResult;
+	}
+
+	public void process(Message message) {
+		// for each received message check if they are stored in S3.
+		MessageAttributeValue largePayloadAttributeValue = message.getMessageAttributes().get(
+				SQSExtendedClientConstants.RESERVED_ATTRIBUTE_NAME);
+		if (largePayloadAttributeValue != null) {
+			String messageBody = message.getBody();
+
+			// read the S3 pointer from the message body JSON string.
+			MessageS3Pointer s3Pointer = readMessageS3PointerFromJSON(messageBody);
+
+			String s3MsgBucketName = s3Pointer.getS3BucketName();
+			String s3MsgKey = s3Pointer.getS3Key();
+
+			String origMsgBody = getTextFromS3(s3MsgBucketName, s3MsgKey);
+			LOG.info("S3 object read, Bucket name: " + s3MsgBucketName + ", Object key: " + s3MsgKey + ".");
+
+			message.setBody(origMsgBody);
+
+			// remove the additional attribute before returning the message
+			// to user.
+			message.getMessageAttributes().remove(SQSExtendedClientConstants.RESERVED_ATTRIBUTE_NAME);
+
+			// Embed s3 object pointer in the receipt handle.
+			String modifiedReceiptHandle = embedS3PointerInReceiptHandle(message.getReceiptHandle(),
+					s3MsgBucketName, s3MsgKey);
+
+			message.setReceiptHandle(modifiedReceiptHandle);
+		}
 	}
 
 	/**
